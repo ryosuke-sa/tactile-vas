@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>触覚評価実験 - VAS入力</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f4f6f8;
+      color: #333;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    }
+    h2 {
+      margin-top: 0;
+      text-align: center;
+      font-size: 24px;
+    }
+    
+    .instruction {
+      background: #fff3cd;
+      color: #856404;
+      padding: 12px;
+      border-radius: 6px;
+      text-align: center;
+      font-weight: bold;
+      border: 1px solid #ffeeba;
+      margin-bottom: 25px;
+    }
+
+    /* 実験者用コントロールエリア */
+    .admin-panel {
+      background: #eef2f7;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 25px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 20px;
+      align-items: center;
+    }
+    .admin-panel label {
+      font-size: 14px;
+      font-weight: bold;
+      color: #555;
+      display: block;
+      margin-bottom: 5px;
+    }
+    .admin-panel select, .admin-panel input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 16px;
+      background: #fff;
+      box-sizing: border-box;
+    }
+
+    /* 学術仕様 カスタムVASエリア */
+    .vas-group {
+      margin: 35px 0;
+      padding: 15px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .vas-title {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 15px;
+    }
+    
+    /* VASの幅（528px）に合わせたラッパー */
+    .vas-wrapper {
+      width: 528px;
+      margin: 0 auto;
+    }
+    .vas-scale-labels {
+      display: flex;
+      justify-content: space-between;
+      color: #333;
+      font-size: 16px;
+      font-weight: 500;
+      margin-bottom: 5px;
+    }
+    
+    /* タッチ・ドラッグ可能な直線エリア（実測10cm = 528pxに固定） */
+    .vas-touch-area {
+      position: relative;
+      width: 528px;
+      margin: 10px auto;
+      height: 60px;
+      cursor: pointer;
+    }
+    .vas-line {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background-color: #222;
+      transform: translateY(-50%);
+      pointer-events: none;
+    }
+    /* 両端の境界を示す目盛り線 */
+    .vas-line::before, .vas-line::after {
+      content: "";
+      position: absolute;
+      top: -10px;
+      width: 2px;
+      height: 24px;
+      background-color: #222;
+    }
+    .vas-line::before { left: 0; }
+    .vas-line::after { right: 0; }
+
+    .vas-marker {
+      position: absolute;
+      top: 50%;
+      width: 4px;
+      height: 40px;
+      background-color: #ff3b30;
+      transform: translate(-50%, -50%);
+      display: none;
+      pointer-events: none;
+    }
+
+    /* ボタンエリア */
+    .btn-container {
+      margin-top: 30px;
+      display: flex;
+      gap: 15px;
+    }
+    button {
+      flex: 1;
+      padding: 18px;
+      font-size: 18px;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .btn-next {
+      background-color: #34c759;
+      color: #fff;
+    }
+    .btn-export {
+      background-color: #5856d6;
+      color: #fff;
+    }
+    .btn-sub {
+      background-color: #8e8e93;
+      color: #fff;
+      font-size: 16px;
+      padding: 14px;
+    }
+    .log-info {
+      margin-top: 15px;
+      text-align: right;
+      font-size: 14px;
+      color: #777;
+    }
+    
+    /* 確認用テキスト */
+    .confirm-text {
+      grid-column: 1 / -1;
+      background: #fff;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 14px;
+      color: #d63031;
+      font-weight: bold;
+      text-align: center;
+      border: 1px dashed #d63031;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  
+  <!-- 1. 被験者用画面（VAS入力） -->
+  <div id="view-subject">
+    <h2>触覚感覚評価</h2>
+    
+    <div class="instruction">
+      ※ 刺激を「押し」と感じたか「引っ張り」と感じたか、<br>感じた方 1つだけ に印をつけてください。
+    </div>
+
+    <!-- VAS 1: 押圧感 -->
+    <div class="vas-group">
+      <div class="vas-title">【押圧感】（押し込まれている感覚）</div>
+      <div class="vas-wrapper">
+        <div class="vas-scale-labels">
+          <span>全く感じない</span>
+          <span>非常に強く感じる</span>
+        </div>
+        <div class="vas-touch-area" id="vasPressureArea">
+          <div class="vas-line"></div>
+          <div class="vas-marker" id="vasPressureMarker"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VAS 2: 引っ張り感 -->
+    <div class="vas-group">
+      <div class="vas-title">【引っ張り感】（髪や皮膚が引っ張られる感覚）</div>
+      <div class="vas-wrapper">
+        <div class="vas-scale-labels">
+          <span>全く感じない</span>
+          <span>非常に強く感じる</span>
+        </div>
+        <div class="vas-touch-area" id="vasTensionArea">
+          <div class="vas-line"></div>
+          <div class="vas-marker" id="vasTensionMarker"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 操作ボタン -->
+    <div class="btn-container">
+      <button class="btn-next" onclick="goToAdmin()">回答を完了する（実験者に渡す）</button>
+    </div>
+  </div>
+
+
+  <!-- 2. 実験者用画面（条件入力と記録） -->
+  <div id="view-admin" style="display: none;">
+    <h2>【実験者用】 条件記録</h2>
+
+    <div class="admin-panel">
+      <!-- 被験者の回答値確認 -->
+      <div class="confirm-text">
+        [直前の回答] 押圧感: <span id="confirmPressure">-</span> / 引っ張り感: <span id="confirmTension">-</span>
+      </div>
+      
+      <div>
+        <label>被験者ID</label>
+        <input type="text" id="participantId" value="P01">
+      </div>
+      <div>
+        <label>試行番号 (Trial)</label>
+        <input type="number" id="trialNum" value="1">
+      </div>
+      <div>
+        <label>刺激を与えた部位</label>
+        <select id="bodyPart">
+          <option value="頭頂部">頭頂部</option>
+          <option value="額">額</option>
+          <option value="右側頭部">右側頭部</option>
+          <option value="左側頭部">左側頭部</option>
+          <option value="後頭部">後頭部</option>
+        </select>
+      </div>
+      <div>
+        <label>押し力強度</label>
+        <select id="stimIntensity">
+          <option value="Level 1 (弱)">Level 1 (弱)</option>
+          <option value="Level 2 (中弱)">Level 2 (中弱)</option>
+          <option value="Level 3 (中)">Level 3 (中)</option>
+          <option value="Level 4 (中強)">Level 4 (中強)</option>
+          <option value="Level 5 (強)">Level 5 (強)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="btn-container">
+      <button class="btn-next" onclick="recordAndNext()">この試行を記録して次へ (被験者画面に戻る)</button>
+    </div>
+    
+    <div class="btn-container" style="margin-top: 15px;">
+      <button class="btn-sub" onclick="backToSubject()">戻る (VAS入力からやり直す)</button>
+      <button class="btn-export" onclick="exportCSV()">CSV保存 (実験終了時)</button>
+    </div>
+
+    <div class="log-info" id="logCount">記録済みデータ: 0 件</div>
+  </div>
+
+</div>
+
+<script>
+  let experimentData = [];
+  
+  let tempVasPressure = null;
+  let tempVasTension = null;
+
+  // VASのロジック構築
+  function setupVAS(areaId, markerId, onInteract) {
+    const area = document.getElementById(areaId);
+    const marker = document.getElementById(markerId);
+    let currentValue = null;
+
+    function updateMarkerPosition(clientX) {
+      if (onInteract) onInteract(); 
+
+      const rect = area.getBoundingClientRect();
+      let x = clientX - rect.left;
+      
+      if (x < 0) x = 0;
+      if (x > rect.width) x = rect.width;
+
+      const percentage = (x / rect.width) * 100;
+      currentValue = percentage.toFixed(1);
+
+      marker.style.display = 'block';
+      marker.style.left = percentage + '%';
+    }
+
+    area.addEventListener('touchstart', (e) => {
+      updateMarkerPosition(e.touches[0].clientX);
+    }, {passive: false});
+
+    area.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      updateMarkerPosition(e.touches[0].clientX);
+    }, {passive: false});
+
+    let isDragging = false;
+    area.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      updateMarkerPosition(e.clientX);
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (isDragging) updateMarkerPosition(e.clientX);
+    });
+    window.addEventListener('mouseup', () => {
+      isDragging = false;
+    });
+
+    return {
+      getValue: () => currentValue,
+      reset: () => {
+        currentValue = null;
+        marker.style.display = 'none';
+      }
+    };
+  }
+
+  // 排他処理
+  const vasPressure = setupVAS('vasPressureArea', 'vasPressureMarker', () => {
+    vasTension.reset();
+  });
+  
+  const vasTension = setupVAS('vasTensionArea', 'vasTensionMarker', () => {
+    vasPressure.reset();
+  });
+
+  // 被験者画面 -> 実験者画面
+  function goToAdmin() {
+    tempVasPressure = vasPressure.getValue();
+    tempVasTension = vasTension.getValue();
+
+    if (tempVasPressure === null && tempVasTension === null) {
+      alert("評価が入力されていません。感じた方の直線をタップして回答してください。");
+      return;
+    }
+
+    document.getElementById('confirmPressure').innerText = tempVasPressure !== null ? tempVasPressure : "未回答";
+    document.getElementById('confirmTension').innerText = tempVasTension !== null ? tempVasTension : "未回答";
+
+    document.getElementById('view-subject').style.display = 'none';
+    document.getElementById('view-admin').style.display = 'block';
+    window.scrollTo(0, 0);
+  }
+
+  // 実験者画面 -> 被験者画面 (やり直し用)
+  function backToSubject() {
+    document.getElementById('view-admin').style.display = 'none';
+    document.getElementById('view-subject').style.display = 'block';
+    window.scrollTo(0, 0);
+  }
+
+  // 1試行分の記録処理（共通関数）
+  function pushCurrentData() {
+    const now = new Date();
+    const timeStr = now.toLocaleDateString() + ' ' + now.toLocaleTimeString();
+    
+    const row = {
+      Timestamp: timeStr,
+      Participant: document.getElementById('participantId').value,
+      Trial: document.getElementById('trialNum').value,
+      Part: document.getElementById('bodyPart').value,
+      Intensity: document.getElementById('stimIntensity').value,
+      VAS_Pressure: tempVasPressure,
+      VAS_Tension: tempVasTension
+    };
+
+    experimentData.push(row);
+
+    // 次の試行の準備
+    document.getElementById('trialNum').value = parseInt(row.Trial) + 1;
+    vasPressure.reset();
+    vasTension.reset();
+    tempVasPressure = null;
+    tempVasTension = null;
+
+    document.getElementById('logCount').innerText = `記録済みデータ: ${experimentData.length} 件`;
+  }
+
+  // 「記録して次へ」ボタン
+  function recordAndNext() {
+    pushCurrentData();
+    document.getElementById('view-admin').style.display = 'none';
+    document.getElementById('view-subject').style.display = 'block';
+    window.scrollTo(0, 0);
+  }
+
+  // CSVエクスポート
+  function exportCSV() {
+    if (tempVasPressure !== null || tempVasTension !== null) {
+      pushCurrentData();
+    }
+
+    if (experimentData.length === 0) {
+      alert("記録されたデータがありません。");
+      return;
+    }
+
+    const headers = ["日時", "被験者ID", "試行番号", "刺激部位", "押し強度", "押圧感(VAS)", "引っ張り感(VAS)"];
+    const rows = experimentData.map(d => [
+      `"${d.Timestamp}"`,
+      `"${d.Participant}"`,
+      d.Trial,
+      `"${d.Part}"`,
+      `"${d.Intensity}"`,
+      d.VAS_Pressure !== null ? d.VAS_Pressure : "",
+      d.VAS_Tension !== null ? d.VAS_Tension : ""
+    ]);
+
+    let csvContent = "\uFEFF" + headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const pId = document.getElementById('participantId').value;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `TactileExp_${pId}_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+</script>
+
+</body>
+</html>
