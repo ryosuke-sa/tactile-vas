@@ -111,7 +111,6 @@
       transform: translateY(-50%);
       pointer-events: none;
     }
-    /* 両端の境界を示す目盛り線 */
     .vas-line::before, .vas-line::after {
       content: "";
       position: absolute;
@@ -136,7 +135,7 @@
 
     /* ボタンエリア */
     .btn-container {
-      margin-top: 30px;
+      margin-top: 20px;
       display: flex;
       gap: 15px;
     }
@@ -151,6 +150,10 @@
     }
     .btn-next {
       background-color: #34c759;
+      color: #fff;
+    }
+    .btn-unknown {
+      background-color: #ff9500;
       color: #fff;
     }
     .btn-export {
@@ -168,6 +171,27 @@
       text-align: right;
       font-size: 14px;
       color: #777;
+    }
+
+    /* 隔離されたUndoボタンエリア */
+    .undo-container {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px dashed #ccc;
+      text-align: right;
+    }
+    .btn-undo {
+      background-color: #fff;
+      color: #d63031;
+      border: 1px solid #d63031;
+      font-size: 14px;
+      padding: 10px 20px;
+      border-radius: 6px;
+      flex: none;
+      display: inline-block;
+    }
+    .btn-undo:hover {
+      background-color: #ffeaa7;
     }
     
     /* 確認用テキスト */
@@ -193,7 +217,7 @@
     <h2>触覚感覚評価</h2>
     
     <div class="instruction">
-      ※ 刺激を「押し」と感じたか「引っ張り」と感じたか、<br>感じた方 1つだけ に印をつけてください。
+      ※ 刺激を「押し」と感じたか「引っ張り」と感じたか、<br>感じた方 1つだけ に印をつけてください。<br>判断がつかない場合は「わからない」を選択してください。
     </div>
 
     <!-- VAS 1: 押圧感 -->
@@ -226,9 +250,10 @@
       </div>
     </div>
 
-    <!-- 操作ボタン -->
+    <!-- 操作ボタン（回答完了 ＆ わからない） -->
     <div class="btn-container">
-      <button class="btn-next" onclick="goToAdmin()">回答を完了する（実験者に渡す）</button>
+      <button class="btn-next" onclick="goToAdmin(false)">回答を完了する（実験者に渡す）</button>
+      <button class="btn-unknown" onclick="goToAdmin(true)">わからない</button>
     </div>
   </div>
 
@@ -240,7 +265,7 @@
     <div class="admin-panel">
       <!-- 被験者の回答値確認 -->
       <div class="confirm-text">
-        [直前の回答] 押圧感: <span id="confirmPressure">-</span> / 引っ張り感: <span id="confirmTension">-</span>
+        [直前の回答] <span id="confirmResult">-</span>
       </div>
       
       <div>
@@ -271,6 +296,17 @@
           <option value="Level 5 (強)">Level 5 (強)</option>
         </select>
       </div>
+      
+      <!-- 追加：PCからの転記用 -->
+      <div>
+        <label>知覚時間 (ms)</label>
+        <input type="number" id="perceivedTime">
+      </div>
+      <div>
+        <label>サーボ角度 (deg)</label>
+        <input type="number" step="0.1" id="servoAngle">
+      </div>
+
     </div>
 
     <div class="btn-container">
@@ -283,6 +319,11 @@
     </div>
 
     <div class="log-info" id="logCount">記録済みデータ: 0 件</div>
+
+    <!-- Undoボタンを隔離したエリア -->
+    <div class="undo-container">
+      <button class="btn-undo" onclick="deleteLastData()"> 直前の記録を1件削除 (Undo)</button>
+    </div>
   </div>
 
 </div>
@@ -292,8 +333,8 @@
   
   let tempVasPressure = null;
   let tempVasTension = null;
+  let isUnknown = false; 
 
-  // VASのロジック構築
   function setupVAS(areaId, markerId, onInteract) {
     const area = document.getElementById(areaId);
     const marker = document.getElementById(markerId);
@@ -345,7 +386,6 @@
     };
   }
 
-  // 排他処理
   const vasPressure = setupVAS('vasPressureArea', 'vasPressureMarker', () => {
     vasTension.reset();
   });
@@ -354,32 +394,38 @@
     vasPressure.reset();
   });
 
-  // 被験者画面 -> 実験者画面
-  function goToAdmin() {
-    tempVasPressure = vasPressure.getValue();
-    tempVasTension = vasTension.getValue();
+  function goToAdmin(unknownPressed) {
+    isUnknown = unknownPressed;
 
-    if (tempVasPressure === null && tempVasTension === null) {
-      alert("評価が入力されていません。感じた方の直線をタップして回答してください。");
-      return;
+    if (isUnknown) {
+      tempVasPressure = null;
+      tempVasTension = null;
+      document.getElementById('confirmResult').innerText = "【わからない】（未回答・判断不能）";
+    } else {
+      tempVasPressure = vasPressure.getValue();
+      tempVasTension = vasTension.getValue();
+
+      if (tempVasPressure === null && tempVasTension === null) {
+        alert("評価が入力されていません。直線をタップするか「わからない」ボタンを押してください。");
+        return;
+      }
+
+      let pVal = tempVasPressure !== null ? `押圧感: ${tempVasPressure}` : "";
+      let tVal = tempVasTension !== null ? `引っ張り感: ${tempVasTension}` : "";
+      document.getElementById('confirmResult').innerText = [pVal, tVal].filter(Boolean).join(" / ");
     }
-
-    document.getElementById('confirmPressure').innerText = tempVasPressure !== null ? tempVasPressure : "未回答";
-    document.getElementById('confirmTension').innerText = tempVasTension !== null ? tempVasTension : "未回答";
 
     document.getElementById('view-subject').style.display = 'none';
     document.getElementById('view-admin').style.display = 'block';
     window.scrollTo(0, 0);
   }
 
-  // 実験者画面 -> 被験者画面 (やり直し用)
   function backToSubject() {
     document.getElementById('view-admin').style.display = 'none';
     document.getElementById('view-subject').style.display = 'block';
     window.scrollTo(0, 0);
   }
 
-  // 1試行分の記録処理（共通関数）
   function pushCurrentData() {
     const now = new Date();
     const timeStr = now.toLocaleDateString() + ' ' + now.toLocaleTimeString();
@@ -390,23 +436,29 @@
       Trial: document.getElementById('trialNum').value,
       Part: document.getElementById('bodyPart').value,
       Intensity: document.getElementById('stimIntensity').value,
-      VAS_Pressure: tempVasPressure,
-      VAS_Tension: tempVasTension
+      Time_ms: document.getElementById('perceivedTime').value,
+      Angle_deg: document.getElementById('servoAngle').value,
+      VAS_Pressure: isUnknown ? "Unknown" : (tempVasPressure !== null ? tempVasPressure : ""),
+      VAS_Tension: isUnknown ? "Unknown" : (tempVasTension !== null ? tempVasTension : "")
     };
 
     experimentData.push(row);
 
-    // 次の試行の準備
     document.getElementById('trialNum').value = parseInt(row.Trial) + 1;
+    
+    // 転記用フィールドのリセット
+    document.getElementById('perceivedTime').value = "";
+    document.getElementById('servoAngle').value = "";
+    
     vasPressure.reset();
     vasTension.reset();
     tempVasPressure = null;
     tempVasTension = null;
+    isUnknown = false;
 
     document.getElementById('logCount').innerText = `記録済みデータ: ${experimentData.length} 件`;
   }
 
-  // 「記録して次へ」ボタン
   function recordAndNext() {
     pushCurrentData();
     document.getElementById('view-admin').style.display = 'none';
@@ -414,36 +466,63 @@
     window.scrollTo(0, 0);
   }
 
-  // CSVエクスポート
-  function exportCSV() {
-    if (tempVasPressure !== null || tempVasTension !== null) {
-      pushCurrentData();
+  function deleteLastData() {
+    if (experimentData.length === 0) {
+      alert("削除できる記録済みデータがありません。");
+      return;
     }
 
+    const lastTrial = experimentData[experimentData.length - 1].Trial;
+    if (confirm(`試行 No.${lastTrial} の記録を削除しますか？`)) {
+      experimentData.pop(); 
+      
+      let currentTrial = parseInt(document.getElementById('trialNum').value);
+      if (currentTrial > 1) {
+        document.getElementById('trialNum').value = currentTrial - 1;
+      }
+
+      document.getElementById('logCount').innerText = `記録済みデータ: ${experimentData.length} 件`;
+      alert(`試行 No.${lastTrial} のデータを削除しました。`);
+    }
+  }
+
+  function exportCSV() {
     if (experimentData.length === 0) {
       alert("記録されたデータがありません。");
       return;
     }
 
-    const headers = ["日時", "被験者ID", "試行番号", "刺激部位", "押し強度", "押圧感(VAS)", "引っ張り感(VAS)"];
+    const pId = document.getElementById('participantId').value;
+    
+    // ダイアログを表示してファイル名を決定する
+    const fileNameStr = prompt("保存するファイル名（被験者名など）を入力してください。\n※この名前がCSVのファイル名になります。", pId);
+    
+    if (fileNameStr === null) {
+      return; 
+    }
+
+    const safeFileName = fileNameStr.trim() === "" ? "UnknownSubject" : fileNameStr.trim();
+
+    const headers = ["日時", "被験者ID", "試行番号", "刺激部位", "押し強度", "知覚時間(ms)", "サーボ角度(deg)", "押圧感(VAS)", "引っ張り感(VAS)"];
     const rows = experimentData.map(d => [
       `"${d.Timestamp}"`,
       `"${d.Participant}"`,
       d.Trial,
       `"${d.Part}"`,
       `"${d.Intensity}"`,
-      d.VAS_Pressure !== null ? d.VAS_Pressure : "",
-      d.VAS_Tension !== null ? d.VAS_Tension : ""
+      `"${d.Time_ms}"`,
+      `"${d.Angle_deg}"`,
+      `"${d.VAS_Pressure}"`,
+      `"${d.VAS_Tension}"`
     ]);
 
     let csvContent = "\uFEFF" + headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     
-    const pId = document.getElementById('participantId').value;
     const a = document.createElement("a");
     a.href = url;
-    a.download = `TactileExp_${pId}_${new Date().toISOString().slice(0,10)}.csv`;
+    a.download = `${safeFileName}_${new Date().toISOString().slice(0,10)}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
